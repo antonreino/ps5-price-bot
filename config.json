@@ -1,7 +1,7 @@
 {
-  "interval_seconds": 30,
+  "interval_seconds": 90,
   "timeout_seconds": 18,
-  "stale_after_seconds": 180,
+  "stale_after_seconds": 1800,
   "include_used": false,
   "model_overrides": {
     "https://www.idealo.es/precios/201490239/sony-playstation-5-ps5.html": "fat_disc",
@@ -14,7 +14,7 @@
       "name": "Amazon",
       "parser": "amazon",
       "kind": "retailer",
-      "enabled": true,
+      "enabled": false,
       "urls": [
         "https://www.amazon.es/s?k=consola+playstation+5"
       ],
@@ -26,11 +26,13 @@
       "name": "Fnac",
       "parser": "fnac",
       "kind": "retailer",
-      "enabled": true,
+      "enabled": false,
       "urls": [
         "https://www.fnac.es/n127487/Playstation/Consolas-PS5"
       ],
-      "family": "ps5"
+      "family": "ps5",
+      "interval_seconds": 600,
+      "initial_delay_seconds": 60
     },
     {
       "name": "MediaMarkt",
@@ -40,7 +42,9 @@
       "urls": [
         "https://www.mediamarkt.es/es/search.html?query=playstation%205"
       ],
-      "family": "ps5"
+      "family": "ps5",
+      "interval_seconds": 300,
+      "initial_delay_seconds": 120
     },
     {
       "name": "PcComponentes",
@@ -48,21 +52,26 @@
       "kind": "retailer",
       "enabled": true,
       "urls": [
-        "https://www.pccomponentes.com/categorias/videoconsolas-ps5"
+        "https://www.pccomponentes.com/categorias/videoconsolas-ps5/slim",
+        "https://www.pccomponentes.com/sony-playstation-5-slim-chasis-e",
+        "https://www.pccomponentes.com/sony-playstation-5-slim-digital-chasis-e"
       ],
       "family": "ps5",
-      "interval_seconds": 300,
-      "initial_delay_seconds": 0
+      "interval_seconds": 600,
+      "initial_delay_seconds": 180,
+      "domain_min_gap_seconds": 20
     },
     {
       "name": "Idealo",
       "parser": "idealo",
       "kind": "comparison",
-      "enabled": true,
+      "enabled": false,
       "urls": [
         "https://www.idealo.es/resultados.html?q=playstation+5"
       ],
-      "family": "ps5"
+      "family": "ps5",
+      "interval_seconds": 900,
+      "initial_delay_seconds": 240
     },
     {
       "name": "Chollometro",
@@ -74,29 +83,33 @@
         "https://www.chollometro.com/categorias/ps5",
         "https://www.chollometro.com/categorias/ps5-slim"
       ],
-      "family": "ps5"
+      "family": "ps5",
+      "interval_seconds": 90,
+      "initial_delay_seconds": 0
     },
     {
       "name": "Amazon · Switch 2 Zelda",
       "parser": "amazon",
       "kind": "retailer",
-      "enabled": true,
+      "enabled": false,
       "urls": [
         "https://www.amazon.es/s?k=consola+nintendo+switch+2+zelda+40+aniversario"
       ],
       "family": "switch2",
       "interval_seconds": 900,
-      "initial_delay_seconds": 180
+      "initial_delay_seconds": 450
     },
     {
       "name": "Fnac · Switch 2 Zelda",
       "parser": "fnac",
       "kind": "retailer",
-      "enabled": true,
+      "enabled": false,
       "urls": [
         "https://www.fnac.es/Consola-Nintendo-Switch-2-The-Legend-of-Zelda-40-Aniversario-Videoconsola/a13481099"
       ],
-      "family": "switch2"
+      "family": "switch2",
+      "interval_seconds": 600,
+      "initial_delay_seconds": 360
     },
     {
       "name": "MediaMarkt · Switch 2 Zelda",
@@ -104,9 +117,11 @@
       "kind": "retailer",
       "enabled": true,
       "urls": [
-        "https://www.mediamarkt.es/es/search.html?query=nintendo%20switch%202%20zelda%2040"
+        "https://www.mediamarkt.es/es/product/_consola-nintendo-switch-2-edicion-zelda-40-aniversario-79-full-hd-hdr-120-hz-256-gb-magnetic-joy-con-2-con-modo-raton-1674231.html"
       ],
-      "family": "switch2"
+      "family": "switch2",
+      "interval_seconds": 300,
+      "initial_delay_seconds": 420
     },
     {
       "name": "PcComponentes · Switch 2 Zelda",
@@ -117,18 +132,21 @@
         "https://www.pccomponentes.com/nintendo-switch-2-7-9-fullhd-hdr-120hz-256gb-the-legend-of-zelda-40-aniversario-edition"
       ],
       "family": "switch2",
-      "interval_seconds": 300,
-      "initial_delay_seconds": 120
+      "interval_seconds": 600,
+      "initial_delay_seconds": 480,
+      "domain_min_gap_seconds": 20
     },
     {
       "name": "Idealo · Switch 2 Zelda",
       "parser": "idealo",
       "kind": "comparison",
-      "enabled": true,
+      "enabled": false,
       "urls": [
         "https://www.idealo.es/resultados.html?q=nintendo+switch+2+zelda+40"
       ],
-      "family": "switch2"
+      "family": "switch2",
+      "interval_seconds": 900,
+      "initial_delay_seconds": 540
     },
     {
       "name": "Chollometro · Switch 2 Zelda",
@@ -138,8 +156,76 @@
       "urls": [
         "https://www.chollometro.com/rss/nuevos"
       ],
-      "family": "switch2"
+      "family": "switch2",
+      "interval_seconds": 90,
+      "initial_delay_seconds": 45
+    },
+    {
+      "name": "GAME",
+      "parser": "game",
+      "kind": "retailer",
+      "enabled": true,
+      "family": "ps5",
+      "urls": [
+        "https://www.game.es/hardware/consola/playstation-5/playstation-5-modelo-slim-chassis-e/250405",
+        "https://www.game.es/hardware/consola/playstation-5/playstation-5-edicion-digital-modelo-slim-chassis-e/250406"
+      ],
+      "interval_seconds": 600,
+      "initial_delay_seconds": 240,
+      "domain_min_gap_seconds": 60
+    },
+    {
+      "name": "GAME · Switch 2 Zelda",
+      "parser": "game",
+      "kind": "retailer",
+      "enabled": true,
+      "family": "switch2",
+      "urls": [
+        "https://www.game.es/hardware/consola/nintendo-switch-2/nintendo-switch-2-edicion-zelda-40th/267689"
+      ],
+      "interval_seconds": 600,
+      "initial_delay_seconds": 540,
+      "domain_min_gap_seconds": 60
+    },
+    {
+      "name": "Carrefour",
+      "parser": "carrefour",
+      "kind": "retailer",
+      "enabled": true,
+      "family": "ps5",
+      "expected_eans": [
+        "0711719021247",
+        "0711719020837"
+      ],
+      "urls": [
+        "https://www.carrefour.es/consola-playstation-5-estandar-e-1tb-blanco/VC4A-31794263/p",
+        "https://www.carrefour.es/consola-playstation-5-digital-825gb-blanco/VC4A-31794178/p"
+      ],
+      "interval_seconds": 600,
+      "initial_delay_seconds": 300,
+      "domain_min_gap_seconds": 60,
+      "url_models": {
+        "https://www.carrefour.es/consola-playstation-5-estandar-e-1tb-blanco/VC4A-31794263/p": "slim_disc",
+        "https://www.carrefour.es/consola-playstation-5-digital-825gb-blanco/VC4A-31794178/p": "slim_digital"
+      }
+    },
+    {
+      "name": "Carrefour · Switch 2 Zelda",
+      "parser": "carrefour",
+      "kind": "retailer",
+      "enabled": false,
+      "family": "switch2",
+      "expected_eans": [
+        "0045496337292"
+      ],
+      "urls": [
+        "https://www.carrefour.es/consola-nintendo-switch-2-256gb-edicion-the-legend-of-zelda-40-aniversario/VC4A-34646617/p"
+      ],
+      "interval_seconds": 600,
+      "initial_delay_seconds": 600,
+      "domain_min_gap_seconds": 60,
+      "disabled_reason": "La URL pública devuelve al bot la categoría general de consolas en lugar de la ficha Zelda; se mantiene configurada para poder reactivarla si vuelve a servir el producto correcto."
     }
   ],
-  "config_version": 3
+  "config_version": 7
 }

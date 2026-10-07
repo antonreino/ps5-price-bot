@@ -26,7 +26,8 @@ def availability(value):
     t = normalize(value)
     if any(x in t for x in ("outofstock", "soldout", "discontinued", "agotado", "no disponible", "sin stock")):
         return "out_of_stock"
-    if any(x in t for x in ('preorder', 'presale', 'preventa', 'reservar', 'reserva ya')):
+    if any(x in t for x in ('preorder', 'presale', 'preventa', 'pre-compra', 'precompra',
+                                  'reservar', 'reserva ya', 'proximamente')):
         return 'preorder'
     if any(x in t for x in ("instock", "limitedavailability", "en stock", "anadir a la cesta", "anadir al carrito")):
         return "in_stock"
@@ -42,25 +43,44 @@ def parse_page(html, page_url, source, overrides=None, include_used=False, diagn
             or re.search(r"acceso automatizado|automated access", block_text, re.I)
             or soup.select_one('form[action*="validateCaptcha"]')):
         raise ParseError("Página de bloqueo/CAPTCHA")
+    expected_eans = tuple(str(x) for x in source.get('expected_eans', ()) if str(x))
+    # No tomamos cualquier número de 13 dígitos del HTML como EAN: muchas webs
+    # insertan IDs, timestamps o referencias internas de 13 cifras en scripts.
+    # Solo validamos códigos publicados explícitamente como EAN/GTIN.
+    labeled_eans = set()
+    for pattern in (
+        r'(?i)\bEAN\b\s*[:#-]?\s*(\d{13})',
+        r'(?i)["\']gtin13["\']\s*:\s*["\']?(\d{13})',
+        r'(?i)["\']gtin["\']\s*:\s*["\']?(\d{13})',
+    ):
+        labeled_eans.update(re.findall(pattern, html))
+    if expected_eans and labeled_eans and not labeled_eans.intersection(expected_eans):
+        raise ParseError('EAN/GTIN de la ficha no coincide con el esperado')
+
     found = {}
     recognized = False
     allowed_models = FAMILIES.get(source.get('family'), tuple(m for v in FAMILIES.values() for m in v))
     if diagnostics is not None:
         diagnostics.update(url=page_url, candidates=0, accepted=0, samples=[])
 
-    def add(name, url, price, *, seller="", stock="unknown", shipping=None, condition="unknown"):
+    def add(name, url, price, *, seller="", stock="unknown", shipping=None, condition="unknown", forced_model=None):
         if not isinstance(name, str) or not isinstance(url, str):
             return
         url = canonical(urljoin(page_url, url))
         if not url:
             return
-        model = classify(name, url, overrides, include_used)
+        model = forced_model or classify(name, url, overrides, include_used)
         p = cents(price)
         if diagnostics is not None:
             diagnostics['candidates'] += 1
             if len(diagnostics['samples']) < 12:
-                diagnostics['samples'].append({'title': name[:240], 'price_text': str(price)[:80],
-                    'model': model, 'result': 'aceptado' if model in allowed_models and p is not None else 'sin modelo de esta familia o precio inválido'})
+                diagnostics['samples'].append({
+                    'title': name[:240],
+                    'url': url[:500],
+                    'price_text': str(price)[:80],
+                    'model': model,
+                    'result': 'aceptado' if model in allowed_models and p is not None else 'sin modelo de esta familia o precio inválido',
+                })
         if model not in allowed_models or p is None:
             return
         if not include_used and any(x in normalize(condition) for x in ("used", "refurb", "reacond", "segunda")):
@@ -159,7 +179,7 @@ def parse_page(html, page_url, source, overrides=None, include_used=False, diagn
         cards = soup.select('[data-test="mms-product-card"]')
         recognized = recognized or bool(cards)
         for card in cards:
-            link = card.select_one('a[href*="/product/"]')
+            link = card.select_one('a[href*="/product/"], a[href*="/_"]')
             name = card.select_one('[data-test="product-title"], h2, h3')
             price = card.select_one('[data-test="branded-price-whole-value"]')
             fraction = card.select_one('[data-test="branded-price-decimal-value"]')
@@ -169,6 +189,97 @@ def parse_page(html, page_url, source, overrides=None, include_used=False, diagn
                     raw += "," + fraction.get_text(strip=True).strip(",.")
                 add(name.get_text(" ", strip=True), link["href"], raw,
                     stock=availability(card.get_text(" ", strip=True)))
+
+        # Las fichas directas de MediaMarkt no siempre usan la estructura
+        # de tarjeta de las páginas de búsqueda.
+        if not cards:
+            title_node = soup.select_one('h1')
+            if title_node is None:
+                meta_title = soup.select_one('meta[property="og:title"][content]')
+                title_text = meta_title.get("content", "") if meta_title else ""
+            else:
+                title_text = title_node.get_text(" ", strip=True)
+
+            price_node = soup.select_one(
+                'meta[itemprop="price"][content], '
+                'meta[property="product:price:amount"][content], '
+                '[itemprop="price"][content]'
+            )
+            raw = price_node.get("content", "") if price_node else ""
+
+            if not raw:
+                whole = soup.select_one('[data-test="branded-price-whole-value"]')
+                fraction = soup.select_one('[data-test="branded-price-decimal-value"]')
+                if whole:
+                    raw = whole.get_text(strip=True)
+                    if fraction:
+                        raw += "," + fraction.get_text(strip=True).strip(",.")
+
+            if title_text and raw:
+                recognized = True
+                add(title_text, page_url, raw,
+                    stock=availability(soup.get_text(" ", strip=True)[:12000]))
+    elif parser == "game":
+        found.clear()
+        recognized = False
+        visible = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
+        raw = re.sub(r"\s+", " ", html)
+
+        name = ""
+        h1 = soup.select_one("h1")
+        if h1:
+            name = h1.get_text(" ", strip=True)
+        if not name:
+            og = soup.select_one('meta[property="og:title"][content], meta[name="twitter:title"][content]')
+            if og:
+                name = og.get("content", "").strip()
+        if not name and soup.title:
+            name = soup.title.get_text(" ", strip=True)
+
+        price_match = re.search(r"\b(\d{2,4})\s*(?:['’]|[,\.]|\s)\s*(\d{2})\s*€", visible)
+        if not price_match:
+            price_match = re.search(r"\b(\d{2,4})\s*(?:['’]|[,\.]|&apos;|&#39;|\s)\s*(\d{2})\s*(?:€|&euro;)", raw, re.I)
+        if not price_match:
+            price_match = re.search(r"\b(\d{2,4}(?:[.,]\d{2}))\s*(?:€|&euro;)", raw, re.I)
+
+        if name and price_match:
+            recognized = True
+            raw_price = (price_match.group(1) + "," + price_match.group(2)
+                         if price_match.lastindex == 2 else price_match.group(1))
+            add(name, page_url, raw_price, seller="GAME", stock=availability(visible + " " + raw))
+
+    elif parser == "carrefour":
+        found.clear()
+        recognized = False
+        visible = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
+        name_node = soup.select_one("h1")
+        name = name_node.get_text(" ", strip=True) if name_node else ""
+        if not name:
+            og = soup.select_one('meta[property="og:title"][content]')
+            if og:
+                name = og.get("content", "").strip()
+
+        forced_model = None
+        current = canonical(page_url)
+        for configured_url, configured_model in source.get("url_models", {}).items():
+            if canonical(configured_url) == current:
+                forced_model = configured_model
+                break
+
+        seller_match = re.search(
+            r"Vendido por\s+Carrefour(?:\s+con:)?(.*?)(?:Vendido por|Información del vendedor|Características|$)",
+            visible, re.I
+        )
+        if name and seller_match:
+            fragment = seller_match.group(1)[:1800]
+            price_match = re.search(r"\b(\d{2,4}(?:[.,]\d{1,2})?)\s*€", fragment)
+            if price_match:
+                recognized = True
+                add(name, page_url, price_match.group(1),
+                    seller="Carrefour",
+                    stock=availability(fragment),
+                    forced_model=forced_model)
+
     elif parser == "chollometro":
         # Las clases pueden cambiar: si desaparecen, se informa de error de extracción.
         cards = soup.select('article.thread, article[id^="thread_"]')

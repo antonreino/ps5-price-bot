@@ -52,13 +52,31 @@ def canonical(url):
     p = urlsplit(url)
     if p.scheme not in ("https", "http") or not p.hostname or p.username:
         return ""
-    if p.hostname.endswith("amazon.es"):
+
+    host = p.hostname.lower()
+    if host.endswith("amazon.es"):
         asin = re.search(r"/(?:dp|gp/product)/([A-Z0-9]{10})", p.path)
         if asin:
             return "https://www.amazon.es/dp/" + asin.group(1)
+
+    # Las tiendas vigiladas publican HTTPS. Algunas páginas insertan enlaces
+    # internos equivalentes con http://; normalizamos el esquema para que una
+    # misma ficha no tenga dos claves distintas en Offer.key.
+    secure_hosts = (
+        "pccomponentes.com",
+        "mediamarkt.es",
+        "fnac.es",
+        "idealo.es",
+        "chollometro.com",
+    )
+    scheme = "https" if any(host == d or host.endswith("." + d) for d in secure_hosts) else p.scheme
+
     params = [(k, v) for k, v in parse_qsl(p.query)
               if not k.lower().startswith(("utm_", "ref", "aff", "awc", "tag", "origin", "sv_"))]
-    return urlunsplit((p.scheme, p.netloc.lower(), p.path.rstrip("/"), urlencode(params), ""))
+    netloc = host
+    if p.port and not ((scheme == "https" and p.port == 443) or (scheme == "http" and p.port == 80)):
+        netloc += f":{p.port}"
+    return urlunsplit((scheme, netloc, p.path.rstrip("/"), urlencode(params), ""))
 
 
 def classify(title, url="", overrides=None, include_used=False):
@@ -70,6 +88,9 @@ def classify(title, url="", overrides=None, include_used=False):
     if re.search(r"\bpro\b|\bcfi[- ]?7\d{3}", t):
         return None
     if not include_used and re.search(r"reacondicion|segunda mano|usad[oa]|refurb|renewed|seminuev|reestren", t):
+        return None
+    # No seguimos bundles/packs: solo la consola base exacta.
+    if re.search(r"\s\+\s|\b(?:pack|bundle)\b|\b2x?\s*mandos?\b|\bsegundo mando\b|\b2º mando\b", t):
         return None
     # Rechaza accesorios/juegos incluso cuando contienen 'para consola PS5 Slim'.
     if re.search(r"\b(?:para|compatible con)\s+(?:la\s+)?(?:consola\s+)?(?:sony\s+)?(?:ps5|playstation\s*5)", t):
@@ -91,7 +112,7 @@ def classify(title, url="", overrides=None, include_used=False):
     if slim == fat:  # Ni identificado, o título contradictorio.
         return None
     digital = bool(re.search(r"\bdigital\b|sin (?:disco|lector)|\bcfi[- ]?\d{4}b\b", primary))
-    extra_drive = bool(re.search(r'\+\s*(?:lector|unidad de disco)', t))
+    extra_drive = bool(re.search(r'\+\s*(?:sony\s+)?(?:lector|unidad de disco)', t))
     disc = extra_drive or bool(re.search(r"con (?:disco|lector)|\bblu[- ]?ray\b|\bcfi[- ]?\d{4}a\b", primary))
     if digital and disc:
         # Pack digital + lector físico explícito: cuenta como consola con lector.
@@ -113,11 +134,25 @@ def classify_switch(title, include_used=False):
         return None
     if not include_used and re.search(r'reacondicion|segunda mano|usad[oa]|refurb|renewed|seminuev', t):
         return None
-    if re.search(r'\b(?:oled|lite|funda|mando|controller|joy.?con|carcasa|skin|vinilo|protector|estuche|carrying|case|dock|amiibo|cable|adaptador|soporte|accesorio|juego|videojuego|game|codigo|key|upgrade)\b', primary):
+
+    explicit_console = bool(
+        re.search(r'\b(?:consola|videoconsola|console)\b', primary)
+        or re.match(r'^(?:nintendo\s+)?switch\s*2\b', primary)
+    )
+    if not explicit_console:
+        return None
+
+    # Una ficha de consola puede mencionar los Joy-Con incluidos en el propio
+    # título (MediaMarkt lo hace). Rechazamos accesorios/juegos cuando son el
+    # producto principal, no por aparecer como contenido incluido.
+    if re.match(
+        r'^(?:nintendo\s+)?(?:funda|mando|controller|joy.?con|carcasa|skin|vinilo|protector|estuche|case|dock|amiibo|cable|adaptador|soporte|accesorio|juego|videojuego|game|codigo|key|upgrade)\b',
+        primary,
+    ):
+        return None
+    if re.search(r'\b(?:oled|lite)\b', primary):
         return None
     if re.search(r'\b(?:para|compatible|sin consola|caja vacia|solo caja|averiad|piezas)\b', primary):
-        return None
-    if not re.search(r'\b(?:consola|videoconsola|console)\b', primary) and not re.match(r'^(?:nintendo\s+)?switch\s*2\b', primary):
         return None
     return 'switch2_zelda40'
 

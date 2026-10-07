@@ -2,7 +2,7 @@
 
 ## Actualización PS5 + Switch 2 Zelda
 
-**36 tests correctos** en Linux. La versión original ya fue instalada por el usuario y respondió en Telegram; la actualización aún debe instalarse en su Mac. No se ha utilizado un token real desde este entorno.
+**37 tests correctos** en Linux. La versión original ya fue instalada por el usuario y respondió en Telegram; la actualización aún debe instalarse en su Mac. No se ha utilizado un token real desde este entorno.
 
 Se ha verificado el nombre oficial de la consola en [Nintendo España](https://www.nintendo.com/es-es/Hardware/Nintendo-Switch-2/Packs-de-Nintendo-Switch-2-/Nintendo-Switch-2-Packs-2785628.html): Nintendo Switch 2 (edición 40.º aniversario de The Legend of Zelda), con lanzamiento el 29/10/2026.
 
@@ -58,3 +58,5 @@ Después de instalar, ejecuta:
 ```
 
 Después consulta `/estado` en el bot. Si Amazon o Fnac siguen fallando, esas fuentes no estarán monitorizando precios aunque el resto funcione. Sus adaptadores necesitarán una vía de acceso permitida y comprobar el HTML recibido. No des por operativo el conjunto de seis fuentes hasta resolverlo.
+
+- **Carrefour · Switch 2 Zelda**: desactivada temporalmente. La URL configurada devuelve al cliente HTTP la categoría general de consolas en vez de la ficha específica; no se fuerza el parser para evitar falsos positivos.

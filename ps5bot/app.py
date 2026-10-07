@@ -20,7 +20,85 @@ LOG = logging.getLogger('ps5bot')
 DOMAINS = {
     'amazon': 'amazon.es', 'fnac': 'fnac.es', 'mediamarkt': 'mediamarkt.es',
     'pccomponentes': 'pccomponentes.com', 'idealo': 'idealo.es', 'chollometro': 'chollometro.com',
+    'game': 'game.es', 'carrefour': 'carrefour.es',
 }
+
+
+# Evita lanzar varias peticiones simultáneas al mismo dominio.
+# No intenta eludir controles anti-bot: al contrario, reduce presión y reutiliza respuestas.
+DOMAIN_MIN_GAP = {
+    'amazon': 120,
+    'fnac': 90,
+    'mediamarkt': 45,
+    'pccomponentes': 120,
+    'idealo': 120,
+    'chollometro': 20,
+    'game': 60,
+    'carrefour': 60,
+}
+SHARED_CACHE_SECONDS = {
+    'chollometro': 60,
+}
+_FETCH_STATE_LOCK = threading.Lock()
+_DOMAIN_LOCKS = {}
+_DOMAIN_LAST_REQUEST = {}
+_RESPONSE_CACHE = {}
+
+
+def source_default_interval(parser):
+    return {
+        'amazon': 900,          # 15 min
+        'fnac': 600,            # 10 min
+        'mediamarkt': 300,      # 5 min
+        'pccomponentes': 600,   # 10 min
+        'idealo': 900,          # 15 min
+        'chollometro': 90,      # 90 s; RSS es la fuente más rápida
+        'game': 600,
+        'carrefour': 600,
+    }.get(parser, 300)
+
+
+def fetch_source_url(url, source, cfg):
+    """Petición coordinada por dominio con caché corta para URLs compartidas."""
+    parser = source.get('parser', '')
+    now = time.monotonic()
+    cache_seconds = float(source.get('cache_seconds', SHARED_CACHE_SECONDS.get(parser, 0)))
+
+    if cache_seconds > 0:
+        with _FETCH_STATE_LOCK:
+            cached = _RESPONSE_CACHE.get(url)
+            if cached and now - cached[0] < cache_seconds:
+                return cached[1]
+
+    with _FETCH_STATE_LOCK:
+        lock = _DOMAIN_LOCKS.setdefault(parser, threading.Lock())
+
+    with lock:
+        # Otra tarea puede haber rellenado la caché mientras esperábamos el lock.
+        now = time.monotonic()
+        if cache_seconds > 0:
+            with _FETCH_STATE_LOCK:
+                cached = _RESPONSE_CACHE.get(url)
+                if cached and now - cached[0] < cache_seconds:
+                    return cached[1]
+
+        min_gap = float(source.get('domain_min_gap_seconds', DOMAIN_MIN_GAP.get(parser, 30)))
+        with _FETCH_STATE_LOCK:
+            last = _DOMAIN_LAST_REQUEST.get(parser, 0.0)
+        wait = max(0.0, min_gap - (time.monotonic() - last))
+        if wait:
+            time.sleep(wait)
+
+        try:
+            html = fetch(url, cfg.get('timeout_seconds', 18))
+        finally:
+            with _FETCH_STATE_LOCK:
+                _DOMAIN_LAST_REQUEST[parser] = time.monotonic()
+
+        if cache_seconds > 0:
+            with _FETCH_STATE_LOCK:
+                _RESPONSE_CACHE[url] = (time.monotonic(), html)
+        return html
 
 
 def env_file():
@@ -60,27 +138,67 @@ def load_config(path):
 
 
 def source_interval(source, cfg):
-    """Cadencia individual; evita castigar proveedores sensibles a consultas frecuentes."""
+    """Cadencia individual adaptada a cada proveedor."""
     if isinstance(source.get('interval_seconds'), (int, float)) and source['interval_seconds'] >= 30:
         return source['interval_seconds']
-    parser = source.get('parser')
-    if parser == 'amazon':
-        return 900  # 15 minutos
-    if parser == 'pccomponentes':
-        return 300  # 5 minutos
-    return cfg['interval_seconds']
+    return max(cfg['interval_seconds'], source_default_interval(source.get('parser')))
 
 
 def collect(source, cfg, diagnostics=None):
     offers = {}
-    # Una fuente solo se publica si todas sus páginas configuradas se leen correctamente.
+    failures = []
+    successful_urls = 0
+
+    # Las peticiones se coordinan por dominio para que PS5 y Switch 2 no golpeen
+    # simultáneamente la misma tienda. Cada URL se evalúa de forma independiente:
+    # si una ficha concreta falla, conservamos las demás; solo cae la fuente
+    # cuando no se ha podido leer correctamente ninguna URL.
     for url in source['urls']:
-        html = fetch(url, cfg.get('timeout_seconds', 18))
         report = {} if diagnostics is not None else None
-        for offer in parse_page(html, url, source, cfg.get('model_overrides'), cfg.get('include_used', False), report):
-            offers[offer.key] = offer
+        try:
+            html = fetch_source_url(url, source, cfg)
+            parsed = parse_page(
+                html, url, source,
+                cfg.get('model_overrides'),
+                cfg.get('include_used', False),
+                report,
+            )
+            successful_urls += 1
+            for offer in parsed:
+                offers[offer.key] = offer
+        except (FetchError, ParseError) as exc:
+            failures.append(exc)
+            if diagnostics is not None:
+                diagnostics.append({
+                    'url': url,
+                    'error': str(exc),
+                    'candidates': 0,
+                    'accepted': 0,
+                    'samples': [],
+                })
+            continue
+
         if diagnostics is not None:
             diagnostics.append(report)
+
+    if successful_urls == 0 and failures:
+        retry_after = max((getattr(exc, 'retry_after', 0) for exc in failures), default=0)
+        details = []
+        for exc in failures:
+            detail = str(exc)
+            if detail not in details:
+                details.append(detail)
+        message = 'Todas las URLs fallaron: ' + '; '.join(details[:4])
+        if any(isinstance(exc, FetchError) for exc in failures):
+            raise FetchError(message, retry_after)
+        raise ParseError(message)
+
+    if failures:
+        LOG.warning(
+            '%s: lectura parcial; %d/%d URLs correctas; %d con error',
+            source['name'], successful_urls, len(source['urls']), len(failures),
+        )
+
     return list(offers.values())
 
 

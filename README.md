@@ -55,7 +55,8 @@ Cada precio incluye el título de la ficha, la hora de lectura y la información
 
 ## Qué se comprueba y cuándo avisa
 
-- **Intervalo de 30 segundos por fuente**, desde el inicio de cada consulta. Las fuentes se consultan de manera independiente. No se solapan consultas de una misma fuente ni se acumulan tareas retrasadas.
+- La cadencia es **específica por proveedor**: Chollometro 90 s, MediaMarkt 5 min, Fnac y PcComponentes 10 min, Amazon e Idealo 15 min. Las fuentes PS5/Switch 2 se escalonan al arrancar y las peticiones al mismo dominio se serializan con una separación mínima para reducir 403/429.
+- Las URLs compartidas, como el RSS de Chollometro, usan una caché corta en memoria para que PS5 y Switch 2 puedan reutilizar una sola descarga en vez de pedir el mismo recurso dos veces.
 - Amazon, Fnac, MediaMarkt, PcComponentes, Idealo y Chollometro están configuradas en `config.json`. Chollometro combina su RSS de nuevos anuncios con las categorías de PS5 y PS5 Slim.
 - Switch 2 usa las mismas seis plataformas en monitores separados. Sus anuncios de Chollometro se buscan en el RSS de nuevos anuncios. Un fallo de la búsqueda de una consola no invalida los datos de la otra.
 - La primera lectura correcta establece la referencia, sin enviar todos los productos como nuevas ofertas. Las posteriores notifican **cualquier variación de al menos un céntimo**, tanto subida como bajada, de cada ficha/vendedor detectado. No se limita a la oferta más barata.
@@ -68,6 +69,22 @@ Cada precio incluye el título de la ficha, la hora de lectura y la información
 - Las ofertas agotadas y los anuncios de Chollometro no se mezclan con precios de compra actuales. Los anuncios tienen sus propias alertas y `/chollos`.
 
 Las notificaciones usan una cola persistente con reintentos. Si Telegram acepta un mensaje pero se pierde su respuesta, un reintento podría duplicar ese mensaje: la entrega no promete «exactamente una vez».
+
+### Fuentes temporalmente desactivadas
+
+Amazon, Fnac e Idealo quedan desactivados por defecto mientras sus respuestas no sean fiables desde esta conexión: Amazon devuelve listados sin precio y bloquea las fichas directas con CAPTCHA; Fnac e Idealo responden con HTTP 403. Se conservan en `config.json` con `enabled: false` para poder reactivarlos cuando vuelva a existir una vía de lectura estable.
+
+### Estrategia de consultas
+
+El bot prioriza rapidez útil frente a frecuencia bruta. Consultar una tienda cada 30 segundos no garantiza detectar antes una oferta si el proveedor empieza a responder con 403/429. Por eso:
+
+- Chollometro/RSS se consulta con mayor frecuencia, porque sirve como canal rápido de descubrimiento.
+- Las tiendas se consultan con una cadencia menor y escalonada.
+- PS5 y Switch 2 nunca deben golpear simultáneamente el mismo dominio.
+- Las páginas de producto/categoría específicas se prefieren a búsquedas genéricas cuando están verificadas.
+- Una URL individual puede fallar sin invalidar las demás URLs de la misma fuente; la fuente solo pasa a error si fallan todas.
+- La PS5 Slim Digital de PcComponentes se vigila además mediante su ficha directa, de forma independiente, para detectar su vuelta a stock aunque no aparezca en la categoría.
+- Un 403/429 mantiene el backoff existente y no sustituye el último precio válido.
 
 ## Alcance de la búsqueda y de los precios
 
@@ -117,7 +134,7 @@ Si la fuente devuelve 403/503/CAPTCHA o requiere JavaScript, el adaptador HTTP n
 
 - `interval_seconds`: 30 por defecto; mínimo 30.
 - `timeout_seconds`: 18 por petición; máximo 25.
-- `stale_after_seconds`: 180 para no mostrar precios antiguos como actuales.
+- `stale_after_seconds`: 1800; evita que fuentes con cadencias de 10–15 minutos desaparezcan entre dos consultas correctas. Una fuente marcada como error sigue excluyéndose inmediatamente.
 - `include_used`: `false`; cambia a `true` si quieres permitir fichas marcadas como usadas.
 - `sources[].enabled`: activa o desactiva cada fuente.
 - `sources[].family`: `ps5` o `switch2`; separa los filtros, comandos y estados. Las configuraciones antiguas sin este campo se interpretan como PS5.
@@ -143,7 +160,7 @@ No ejecutes el modo manual a la vez que el servicio. En Linux puedes mantener es
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Los 36 tests cubren formatos de precios, modelos, Pro/accesorios, HTML real reducido de las fuentes accesibles, agotados, antigüedad, fallos, reinicios, cambios de un céntimo, cambios de ofertas no mínimas, autorización y cola de Telegram. También cubren la edición Zelda, reservas, separación de familias, diagnóstico de Amazon y actualización conservando la configuración. Amazon y Fnac tienen fixtures sintéticas, que verifican la lógica pero no demuestran compatibilidad con su web actual.
+Los 37 tests cubren formatos de precios, modelos, Pro/accesorios, HTML real reducido de las fuentes accesibles, agotados, antigüedad, fallos, reinicios, cambios de un céntimo, cambios de ofertas no mínimas, autorización y cola de Telegram. También cubren la edición Zelda, reservas, separación de familias, diagnóstico de Amazon y actualización conservando la configuración. Amazon y Fnac tienen fixtures sintéticas, que verifican la lógica pero no demuestran compatibilidad con su web actual.
 
 Los archivos `.env`, `data/`, `logs/` y `.venv/` están excluidos de git. No subas el token. Las dependencias quedan fijadas en `requirements.txt`.
 
@@ -162,3 +179,7 @@ El adaptador HTML de Amazon se mantiene para respuestas válidas y pruebas, pero
 El chat de Telegram solo recibe avisos de productos/ofertas, cambios de precio y cambios de stock relevantes. Los errores HTTP, bloqueos, recuperaciones de fuentes y otros eventos técnicos no se publican automáticamente. Consúltalos con `/logs`; `/estado` muestra el estado actual y la próxima revisión de cada fuente.
 
 Los avisos enviados se registran de forma persistente en SQLite (`published_notifications`) para que el mismo aviso exacto no vuelva a publicarse tras reinicios. Amazon usa una cadencia de 15 minutos y PcComponentes de 5 minutos; sus fuentes PS5/Switch 2 se escalonan al arrancar para reducir 403/429.
+
+### Carrefour Switch 2 Zelda
+
+`Carrefour · Switch 2 Zelda` queda **desactivada temporalmente**. La URL de producto pública puede abrirse en navegador, pero la respuesta HTTP recibida por el bot devuelve la categoría general de consolas (sin Zelda, sin 519 € y sin EAN de la edición), por lo que mantenerla activa podría producir falsos positivos. Carrefour sigue activo para PS5.

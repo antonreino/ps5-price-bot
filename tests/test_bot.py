@@ -22,9 +22,7 @@ class ClassificationTests(unittest.TestCase):
             'Consola PlayStation 5 Chasis C': 'fat_disc',
             'Consola PS5 Slim Digital 825GB Chasis E': 'slim_digital',
             'Sony PlayStation 5 Slim Chasis E': 'slim_disc',
-            'PS5 Slim Digital + lector': 'slim_disc',
             'PS5 Slim Digital sin lector': 'slim_digital',
-            'PS5 Slim con lector + EA FC26 Digital': 'slim_disc',
             'Sony PS5 Digital E Chassis': 'slim_digital',
         }
         for title, expected in cases.items():
@@ -37,7 +35,9 @@ class ClassificationTests(unittest.TestCase):
                       'Juego PS5 Slim Digital', 'Lector PS5 Slim', 'PS5 Slim soporte vertical',
                       'PS5 Slim lector de discos', 'PS5 Slim segunda mano',
                       'PS5 Slim reacondicionada', 'PS5 Slim caja vacía',
-                      'Sony PlayStation 5 Digital', 'Sony PS5 825GB']:
+                      'Sony PlayStation 5 Digital', 'Sony PS5 825GB',
+                      'PS5 Slim Digital + lector',
+                      'PS5 Slim con lector + EA FC26 Digital']:
             with self.subTest(title=title):
                 self.assertIsNone(classify(title))
 
@@ -45,12 +45,38 @@ class ClassificationTests(unittest.TestCase):
         url = 'https://www.amazon.es/dp/B012345678'
         self.assertIsNone(classify('PS5 Pro', url, {url: 'slim_disc'}))
 
+    def test_bundles_are_excluded(self):
+        self.assertIsNone(classify('Sony PlayStation 5 Slim Digital Chasis E + Sony Unidad de Disco para PlayStation'))
+        self.assertIsNone(classify('Sony PlayStation 5 Slim Chasis E + Marvel: Lobezno PS5'))
+        self.assertIsNone(classify('Pack PlayStation 5 Slim Chasis E con juego'))
+
     def test_locale_prices(self):
         for raw, expected in [('549€', 54900), ('1.299,99 €', 129999), ('649.99', 64999),
                               ('desde 564,50 €', 56450), ('1.000', 100000)]:
             self.assertEqual(cents(raw), expected)
         for raw in ['0', '-1', 'NaN', 'Infinity', '19 €/mes durante 24 meses', 'antes 699€ ahora 499€', 'None']:
             self.assertIsNone(cents(raw))
+
+    def test_http_https_same_product_are_same_key(self):
+        a = Offer(
+            'PcComponentes',
+            'https://www.pccomponentes.com/sony-playstation-5-slim-chasis-e-plus-marvel-lobezno-ps5',
+            'Sony PlayStation 5 Slim Chasis E + Marvel: Lobezno PS5',
+            'slim_disc',
+            70999,
+        )
+        b = Offer(
+            'PcComponentes',
+            'http://www.pccomponentes.com/sony-playstation-5-slim-chasis-e-plus-marvel-lobezno-ps5',
+            'Sony PlayStation 5 Slim Chasis E + Marvel: Lobezno PS5',
+            'slim_disc',
+            70999,
+        )
+        self.assertEqual(a.key, b.key)
+        self.assertEqual(
+            canonical(b.url),
+            'https://www.pccomponentes.com/sony-playstation-5-slim-chasis-e-plus-marvel-lobezno-ps5',
+        )
 
     def test_tracking_url_stable(self):
         self.assertEqual(canonical('https://www.amazon.es/Playstation/dp/B012345678/ref=x?tag=x'),
@@ -122,6 +148,101 @@ class ParserTests(unittest.TestCase):
         p['offers']['itemCondition'] = 'https://schema.org/RefurbishedCondition'
         self.assertEqual(parse_page(html(), 'https://www.fnac.es/a1', self.source('Fnac')), [])
 
+    def test_mediamarkt_direct_product_page(self):
+        s = self.source('MediaMarkt · Switch 2 Zelda')
+        html = '''
+        <html>
+          <head>
+            <meta property="og:title" content="Consola Nintendo Switch 2 Edición Zelda 40 Aniversario">
+            <meta itemprop="price" content="519.00">
+          </head>
+          <body>
+            <h1>Consola Nintendo Switch 2 Edición Zelda 40 Aniversario</h1>
+            <div>Disponible próximamente Fecha de lanzamiento: 29/10/2026</div>
+          </body>
+        </html>
+        '''
+        offers = parse_page(html, s['urls'][0], s)
+        self.assertEqual(len(offers), 1)
+        self.assertEqual(offers[0].model, 'switch2_zelda40')
+        self.assertEqual(offers[0].price, 51900)
+
+    def test_switch2_console_title_can_mention_included_joycon(self):
+        s = self.source('MediaMarkt · Switch 2 Zelda')
+        title = 'Consola - Nintendo Switch 2 (Edición Zelda 40 Aniversario), 7.9” Full HD HDR 120 Hz, 256 GB, Magnetic Joy-Con 2 con modo ratón'
+        html = f'<script type="application/ld+json">{{"@type":"Product","name":"{title}","offers":{{"@type":"Offer","price":"519","priceCurrency":"EUR"}}}}</script>'
+        offers = parse_page(html, s['urls'][0], s)
+        self.assertEqual(len(offers), 1)
+        self.assertEqual(offers[0].model, 'switch2_zelda40')
+        self.assertEqual(offers[0].price, 51900)
+
+    def test_game_direct_product_page(self):
+        source = {'name':'GAME','parser':'game','kind':'retailer','family':'ps5','urls':['https://www.game.es/x']}
+        html = """<html><body><h1>PlayStation 5 Modelo Slim Chassis E</h1><div>649 '99 €</div><div>Añadir a la cesta</div></body></html>"""
+        offers = parse_page(html, source['urls'][0], source)
+        self.assertEqual(len(offers), 1)
+        self.assertEqual(offers[0].model, 'slim_disc')
+        self.assertEqual(offers[0].price, 64999)
+
+    def test_game_switch_zelda_preorder(self):
+        source = {'name':'GAME · Switch 2 Zelda','parser':'game','kind':'retailer','family':'switch2','urls':['https://www.game.es/x']}
+        html = """<html><body><h1>Nintendo Switch 2 Edición Zelda 40th</h1><div>PRÓXIMAMENTE</div><div>519 '99 €</div></body></html>"""
+        offers = parse_page(html, source['urls'][0], source)
+        self.assertEqual(len(offers), 1)
+        self.assertEqual(offers[0].model, 'switch2_zelda40')
+        self.assertEqual(offers[0].availability, 'preorder')
+
+    def test_carrefour_uses_own_offer_not_marketplace(self):
+        source = {'name':'Carrefour','parser':'carrefour','kind':'retailer','family':'ps5','expected_eans':['0711719021247'],'urls':['https://www.carrefour.es/x']}
+        html = """<html><body><h1>Consola PlayStation 5 Slim Chasis E 1TB Blanco</h1><div>Vendido por Ventas AMT 620 €</div><div>Vendido por Carrefour 649 € Añadir a la cesta</div><div>EAN 0711719021247</div></body></html>"""
+        offers = parse_page(html, source['urls'][0], source)
+        self.assertEqual(len(offers), 1)
+        self.assertEqual(offers[0].price, 64900)
+        self.assertEqual(offers[0].seller, 'Carrefour')
+
+    def test_expected_ean_rejects_explicit_wrong_ean(self):
+        source = {'name':'Carrefour · Switch 2 Zelda','parser':'carrefour','kind':'retailer','family':'switch2','expected_eans':['0045496337292'],'urls':['https://www.carrefour.es/x']}
+        html = '<html><body><h1>Nintendo Switch 2 Edición Zelda 40 Aniversario</h1><div>519 €</div><div>EAN 0000000000000</div></body></html>'
+        with self.assertRaises(ParseError):
+            parse_page(html, source['urls'][0], source)
+
+    def test_unlabeled_13_digit_ids_do_not_count_as_ean(self):
+        source = {
+            'name':'Carrefour · Switch 2 Zelda', 'parser':'carrefour',
+            'kind':'retailer', 'family':'switch2',
+            'expected_eans':['0045496337292'],
+            'urls':['https://www.carrefour.es/ficha/p']
+        }
+        html = '<html><body><h1>Consola Nintendo Switch 2 256GB Edición The Legend of Zelda 40 Aniversario</h1><div>Vendido por Carrefour 519 € Pre-compra</div><script>window.__id = 1731000000000; window.__ref = 1234567890123;</script></body></html>'
+        offers = parse_page(html, source['urls'][0], source)
+        self.assertEqual(len(offers), 1)
+        self.assertEqual(offers[0].model, 'switch2_zelda40')
+        self.assertEqual(offers[0].price, 51900)
+
+    def test_expected_ean_can_be_absent_from_html(self):
+        source = {
+            'name':'Carrefour · Switch 2 Zelda', 'parser':'carrefour',
+            'kind':'retailer', 'family':'switch2',
+            'expected_eans':['0045496337292'],
+            'urls':['https://www.carrefour.es/ficha/p']
+        }
+        html = '<html><body><h1>Consola Nintendo Switch 2 256GB Edición The Legend of Zelda 40 Aniversario</h1><div>Vendido por Carrefour 519 € Pre-compra</div></body></html>'
+        offers = parse_page(html, source['urls'][0], source)
+        self.assertEqual(len(offers), 1)
+        self.assertEqual(offers[0].model, 'switch2_zelda40')
+        self.assertEqual(offers[0].price, 51900)
+
+    def test_game_title_fallback_and_split_price(self):
+        source = {
+            'name':'GAME', 'parser':'game', 'kind':'retailer', 'family':'ps5',
+            'urls':['https://www.game.es/hardware/consola/playstation-5/playstation-5-modelo-slim-chassis-e/250405']
+        }
+        html = '<html><head><title>PlayStation 5 Modelo Slim Chassis E. Playstation 5: GAME.es</title></head><body><div>Entrega inmediata</div><span>649</span><span>99 €</span></body></html>'
+        offers = parse_page(html, source['urls'][0], source)
+        self.assertEqual(len(offers), 1)
+        self.assertEqual(offers[0].model, 'slim_disc')
+        self.assertEqual(offers[0].price, 64999)
+
     def test_synthetic_site_cards(self):
         cases = {
           'Amazon': '<div data-component-type="s-search-result" data-asin="B012345678"><h2>PS5 Slim Digital</h2><span class="a-price"><span class="a-offscreen">450€</span></span><span class="a-price a-text-price"><span class="a-offscreen">600€</span></span></div>',
@@ -140,11 +261,31 @@ class ParserTests(unittest.TestCase):
         html = '<article class="thread thread--expired"><a class="thread-title--list" href="/ofertas/x">PS5 Slim</a><span class="thread-price">99€</span></article>'
         self.assertEqual(parse_page(html, 'https://www.chollometro.com', self.source('Chollometro')), [])
 
-    def test_partial_source_failure_is_not_success(self):
-        s = self.source('PcComponentes') | {'urls':['https://www.pccomponentes.com/a','https://www.pccomponentes.com/b']}
-        with patch('ps5bot.app.fetch', side_effect=['<html/>', FetchError('HTTP 403')]), patch('ps5bot.app.parse_page', return_value=[]):
-            with self.assertRaises(FetchError):
+    def test_partial_source_failure_keeps_successful_urls(self):
+        s = self.source('PcComponentes') | {
+            'urls':['https://www.pccomponentes.com/a','https://www.pccomponentes.com/b'],
+            'domain_min_gap_seconds': 0,
+        }
+        offer = Offer(
+            'PcComponentes',
+            'https://www.pccomponentes.com/sony-playstation-5-slim-chasis-e',
+            'Sony PlayStation 5 Slim Chasis E',
+            'slim_disc',
+            64900,
+            availability='in_stock',
+        )
+        with patch('ps5bot.app.fetch', side_effect=['<html/>', FetchError('HTTP 403')]),              patch('ps5bot.app.parse_page', return_value=[offer]):
+            self.assertEqual(collect(s, CONFIG), [offer])
+
+    def test_source_fails_only_when_all_urls_fail(self):
+        s = self.source('PcComponentes') | {
+            'urls':['https://www.pccomponentes.com/a','https://www.pccomponentes.com/b'],
+            'domain_min_gap_seconds': 0,
+        }
+        with patch('ps5bot.app.fetch', side_effect=[FetchError('HTTP 403'), FetchError('HTTP 429')]):
+            with self.assertRaises(FetchError) as ctx:
                 collect(s, CONFIG)
+        self.assertIn('Todas las URLs fallaron', str(ctx.exception))
 
 
 class StateTests(unittest.TestCase):
@@ -182,11 +323,61 @@ class StateTests(unittest.TestCase):
 
     def test_failure_does_not_replace_price(self):
         self.store.source_result('Amazon', [self.offer], now=100)
-        self.store.source_result('Amazon', [], error='HTTP 403', now=130)
+
+        self.store.source_result(
+            'Amazon',
+            [],
+            error='HTTP 403',
+            now=130,
+        )
+
+        # El último precio válido permanece guardado.
+        self.assertEqual(
+            self.store.db.execute('SELECT price FROM offers').fetchone()[0],
+            45000,
+        )
+
+        # Una fuente en error no participa en el resumen actual.
         self.assertNotIn('<b>450', self.store.summary(now=135))
-        self.assertEqual(self.store.db.execute('SELECT price FROM offers').fetchone()[0], 45000)
-        self.store.source_result('Amazon', [], error='HTTP 403', now=160)
-        self.assertEqual(self.count(), 1)  # una incidencia, no una por reintento
+
+        # Los errores técnicos no se envían a Telegram.
+        self.assertEqual(self.count(), 0)
+
+        # La incidencia sí queda registrada para /logs y el dashboard.
+        events = self.store.db.execute(
+            """
+            SELECT name, level, detail
+            FROM source_events
+            WHERE name=?
+            ORDER BY id
+            """,
+            ('Amazon',),
+        ).fetchall()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['level'], 'error')
+        self.assertEqual(events[0]['detail'], 'HTTP 403')
+
+        # El mismo error repetido no duplica el evento.
+        self.store.source_result(
+            'Amazon',
+            [],
+            error='HTTP 403',
+            now=160,
+        )
+
+        events = self.store.db.execute(
+            """
+            SELECT name, level, detail
+            FROM source_events
+            WHERE name=?
+            ORDER BY id
+            """,
+            ('Amazon',),
+        ).fetchall()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(self.count(), 0)
 
     def test_stale_and_disappeared_not_current(self):
         self.store.source_result('Amazon', [self.offer], now=100)
