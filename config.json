@@ -1,0 +1,145 @@
+{
+  "interval_seconds": 30,
+  "timeout_seconds": 18,
+  "stale_after_seconds": 180,
+  "include_used": false,
+  "model_overrides": {
+    "https://www.idealo.es/precios/201490239/sony-playstation-5-ps5.html": "fat_disc",
+    "https://www.idealo.es/precios/200584783/sony-playstation-5-ps5-standard-edition.html": "fat_disc",
+    "https://www.idealo.es/precios/200584791/sony-playstation-5-ps5-digital-edition.html": "fat_digital",
+    "https://www.idealo.es/precios/202031345/sony-playstation-5-ps5-digital-edition-standard-edition.html": "fat_digital"
+  },
+  "sources": [
+    {
+      "name": "Amazon",
+      "parser": "amazon",
+      "kind": "retailer",
+      "enabled": true,
+      "urls": [
+        "https://www.amazon.es/s?k=consola+playstation+5"
+      ],
+      "family": "ps5",
+      "interval_seconds": 900,
+      "initial_delay_seconds": 0
+    },
+    {
+      "name": "Fnac",
+      "parser": "fnac",
+      "kind": "retailer",
+      "enabled": true,
+      "urls": [
+        "https://www.fnac.es/n127487/Playstation/Consolas-PS5"
+      ],
+      "family": "ps5"
+    },
+    {
+      "name": "MediaMarkt",
+      "parser": "mediamarkt",
+      "kind": "retailer",
+      "enabled": true,
+      "urls": [
+        "https://www.mediamarkt.es/es/search.html?query=playstation%205"
+      ],
+      "family": "ps5"
+    },
+    {
+      "name": "PcComponentes",
+      "parser": "pccomponentes",
+      "kind": "retailer",
+      "enabled": true,
+      "urls": [
+        "https://www.pccomponentes.com/categorias/videoconsolas-ps5"
+      ],
+      "family": "ps5",
+      "interval_seconds": 300,
+      "initial_delay_seconds": 0
+    },
+    {
+      "name": "Idealo",
+      "parser": "idealo",
+      "kind": "comparison",
+      "enabled": true,
+      "urls": [
+        "https://www.idealo.es/resultados.html?q=playstation+5"
+      ],
+      "family": "ps5"
+    },
+    {
+      "name": "Chollometro",
+      "parser": "chollometro",
+      "kind": "deal",
+      "enabled": true,
+      "urls": [
+        "https://www.chollometro.com/rss/nuevos",
+        "https://www.chollometro.com/categorias/ps5",
+        "https://www.chollometro.com/categorias/ps5-slim"
+      ],
+      "family": "ps5"
+    },
+    {
+      "name": "Amazon · Switch 2 Zelda",
+      "parser": "amazon",
+      "kind": "retailer",
+      "enabled": true,
+      "urls": [
+        "https://www.amazon.es/s?k=consola+nintendo+switch+2+zelda+40+aniversario"
+      ],
+      "family": "switch2",
+      "interval_seconds": 900,
+      "initial_delay_seconds": 180
+    },
+    {
+      "name": "Fnac · Switch 2 Zelda",
+      "parser": "fnac",
+      "kind": "retailer",
+      "enabled": true,
+      "urls": [
+        "https://www.fnac.es/Consola-Nintendo-Switch-2-The-Legend-of-Zelda-40-Aniversario-Videoconsola/a13481099"
+      ],
+      "family": "switch2"
+    },
+    {
+      "name": "MediaMarkt · Switch 2 Zelda",
+      "parser": "mediamarkt",
+      "kind": "retailer",
+      "enabled": true,
+      "urls": [
+        "https://www.mediamarkt.es/es/search.html?query=nintendo%20switch%202%20zelda%2040"
+      ],
+      "family": "switch2"
+    },
+    {
+      "name": "PcComponentes · Switch 2 Zelda",
+      "parser": "pccomponentes",
+      "kind": "retailer",
+      "enabled": true,
+      "urls": [
+        "https://www.pccomponentes.com/nintendo-switch-2-7-9-fullhd-hdr-120hz-256gb-the-legend-of-zelda-40-aniversario-edition"
+      ],
+      "family": "switch2",
+      "interval_seconds": 300,
+      "initial_delay_seconds": 120
+    },
+    {
+      "name": "Idealo · Switch 2 Zelda",
+      "parser": "idealo",
+      "kind": "comparison",
+      "enabled": true,
+      "urls": [
+        "https://www.idealo.es/resultados.html?q=nintendo+switch+2+zelda+40"
+      ],
+      "family": "switch2"
+    },
+    {
+      "name": "Chollometro · Switch 2 Zelda",
+      "parser": "chollometro",
+      "kind": "deal",
+      "enabled": true,
+      "urls": [
+        "https://www.chollometro.com/rss/nuevos"
+      ],
+      "family": "switch2"
+    }
+  ],
+  "config_version": 3
+}
