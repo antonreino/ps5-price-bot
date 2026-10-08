@@ -88,11 +88,11 @@ El bot prioriza rapidez útil frente a frecuencia bruta. Consultar una tienda ca
 
 ## Alcance de la búsqueda y de los precios
 
-Se leen las páginas configuradas de búsqueda/categoría, con las fichas que publican en esa respuesta. **No se recorre todo el catálogo ni todas las páginas de resultados**. Puedes añadir fichas concretas o páginas adicionales a `urls`. Las páginas adicionales de una misma fuente se leen en serie; si tardan más de 30 segundos, la siguiente ejecución empieza al terminar. Una fuente con varias URLs solo publica el conjunto si todas se han leído correctamente.
+Se leen las páginas configuradas de búsqueda/categoría, con las fichas que publican en esa respuesta. **No se recorre todo el catálogo ni todas las páginas de resultados**. Puedes añadir fichas concretas o páginas adicionales a `urls`. Las páginas adicionales de una misma fuente se leen en serie; si tardan más de 30 segundos, la siguiente ejecución empieza al terminar. Una URL individual puede fallar sin invalidar las demás: la fuente solo pasa a error si ninguna de sus URLs se ha podido leer correctamente.
 
 Se prioriza identificar bien la consola: una PS5 sin generación explícita no se considera Fat por defecto. Se reconocen Slim, chasis A–E y referencias CFI compatibles. Las fichas originales de Idealo identificadas durante la preparación tienen asignación explícita en `model_overrides`. Un título ambiguo se descarta; las Pro se excluyen incluso con una asignación manual.
 
-Por defecto se excluyen reacondicionadas y usadas cuando el título o los datos estructurados lo indican. Puede haber fichas con condición desconocida; no se presentan como nuevas verificadas. Se admiten packs y vendedores de marketplace y se muestra el título para no esconder qué incluye la oferta. El parser no puede certificar una ficha mal etiquetada por la tienda.
+Por defecto se excluyen reacondicionadas y usadas cuando el título o los datos estructurados lo indican. Puede haber fichas con condición desconocida; no se presentan como nuevas verificadas. También se excluyen packs/bundles y combinaciones con juegos, lectores adicionales o segundos mandos para vigilar únicamente la consola objetivo. El parser no puede certificar una ficha mal etiquetada por la tienda.
 
 El mínimo se calcula por **precio publicado del artículo**, sin añadir envío. No se aplican cupones, descuentos personales, ventajas Prime/socio, financiación, reembolsos ni condiciones de pago. Cuando el envío o stock se desconocen se indica expresamente. Los precios «desde» de Idealo pueden agrupar variantes: confirma la opción exacta, el vendedor y las condiciones antes de comprar.
 
@@ -178,7 +178,7 @@ El adaptador HTML de Amazon se mantiene para respuestas válidas y pruebas, pero
 
 El chat de Telegram solo recibe avisos de productos/ofertas, cambios de precio y cambios de stock relevantes. Los errores HTTP, bloqueos, recuperaciones de fuentes y otros eventos técnicos no se publican automáticamente. Consúltalos con `/logs`; `/estado` muestra el estado actual y la próxima revisión de cada fuente.
 
-Los avisos enviados se registran de forma persistente en SQLite (`published_notifications`) para que el mismo aviso exacto no vuelva a publicarse tras reinicios. Amazon usa una cadencia de 15 minutos y PcComponentes de 5 minutos; sus fuentes PS5/Switch 2 se escalonan al arrancar para reducir 403/429.
+Los avisos enviados se registran de forma persistente en SQLite (`published_notifications`) para que el mismo aviso exacto no vuelva a publicarse tras reinicios. Amazon usa una cadencia de 15 minutos y PcComponentes de 10 minutos; sus fuentes PS5/Switch 2 se escalonan al arrancar para reducir 403/429.
 
 ### Carrefour Switch 2 Zelda
 
